@@ -365,7 +365,7 @@ function App() {
           onToggleUserStatus={handleToggleUserStatus}
           onToggleCardLock={handleAdminToggleCardLock}
         />
-      ) : (
+      ) : ( 
         <UserDashboard
           currentUser={currentUser}
           theme={theme}
