@@ -26,6 +26,7 @@ export const defaultUsers = [
       },
     },
     wallet: {
+      primaryCardId: 'adm-card-1',
       cards: [
         {
           id: 'adm-card-1',
@@ -86,6 +87,7 @@ export const defaultUsers = [
       },
     },
     wallet: {
+      primaryCardId: 'card-1',
       cards: [
         {
           id: 'card-1',
