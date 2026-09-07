@@ -96,7 +96,7 @@ function App() {
           expiryDate: '2034-01-01',
         },
       },
-      wallet: { cards: [], totalBalance: 0 },
+      wallet: { cards: [], totalBalance: 0, primaryCardId: null },
       transactions: [],
     };
 
@@ -136,6 +136,7 @@ function App() {
       wallet: {
         ...currentUser.wallet,
         cards: [...currentUser.wallet.cards, newCard],
+        primaryCardId: currentUser.wallet.primaryCardId || newCard.id,
       },
     };
 
@@ -299,6 +300,16 @@ function App() {
     setMessage('Karta holati yangilandi.');
   };
 
+  const handleSetPrimaryCard = (cardId) => {
+    if (!currentUser) return;
+    const updatedUser = {
+      ...currentUser,
+      wallet: { ...currentUser.wallet, primaryCardId: cardId },
+    };
+    syncUserState(updatedUser);
+    setMessage('Asosiy karta yangilandi.');
+  };
+
   const handleToggleUserStatus = (userId) => {
     const updatedUsers = users.map((user) => {
       if (user.id !== userId || user.role !== 'user') return user;
@@ -378,6 +389,7 @@ function App() {
           onPayment={handlePayment}
           onProfileUpdate={handleProfileUpdate}
           onToggleCardLock={handleToggleCardLock}
+          onSetPrimaryCard={handleSetPrimaryCard}
         />
       )}
     </div>

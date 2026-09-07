@@ -5,7 +5,7 @@ export const api = axios.create({
   timeout: 5000,
 });
 
-export const buildVerificationCode = () => String(Math.floor(100000 + Math.random() * 900000));
+export const buildVerificationCode = () => String(Math.floor(1000 + Math.random() * 9000));
 
 export const apiRequest = async (method, endpoint, payload = {}) => {
   try {
