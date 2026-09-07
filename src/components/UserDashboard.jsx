@@ -6,7 +6,8 @@ import {
   FiArrowUpRight,
   FiBell,
   FiBriefcase,
-  FiCheckCircle,
+  FiCheck,
+  FiCopy,
   FiCreditCard,
   FiDownload,
   FiDollarSign,
@@ -19,18 +20,19 @@ import {
   FiTrendingUp,
   FiUnlock,
   FiUser,
-  FiUsers,
 } from 'react-icons/fi';
 import { currencyMeta } from '../data/mockData';
 
 const sidebarItems = [
   { id: 'overview', label: 'Overview', icon: FiActivity },
+  { id: 'wallet', label: 'Wallet', icon: FiDollarSign },
   { id: 'cards', label: 'Cards', icon: FiCreditCard },
   { id: 'transfer', label: 'Transfer', icon: FiArrowUpRight },
   { id: 'profile', label: 'Profile', icon: FiUser },
   { id: 'transactions', label: 'Transactions', icon: FiBriefcase },
   { id: 'settings', label: 'Settings', icon: FiSettings },
 ];
+const timeframeDays = { '1 day': 1, '1 week': 7, '1 month': 30, '6 months': 180, '1 year': 365 };
 
 const formatCurrency = (currency, amount) => {
   if (amount === undefined || amount === null) return '—';
@@ -45,6 +47,26 @@ const formatCurrency = (currency, amount) => {
   }).format(numeric);
 };
 
+function TransactionRow({ transaction, formatCurrency, onDownload }) {
+  return (
+    <div className="transaction-item">
+      <div className="tx-icon">{transaction.direction === 'incoming' ? <FiArrowDownLeft /> : <FiArrowUpRight />}</div>
+      <div className="tx-main"><strong>{transaction.title}</strong><small>{transaction.description}</small></div>
+      <div className="tx-detail"><strong className={transaction.direction === 'incoming' ? 'incoming' : 'outgoing'}>{transaction.direction === 'incoming' ? '+' : '-'}{formatCurrency(transaction.currency, transaction.amount)}</strong><small>{new Date(transaction.timestamp).toLocaleString()}</small></div>
+      {onDownload && <button type="button" className="tiny-btn" onClick={onDownload}><FiDownload /> PDF</button>}
+    </div>
+  );
+}
+
+function CardDetail({ card, isPrimary, isVisible, onToggleVisibility, onCopy, onToggleLock, onSetPrimary, onHistory }) {
+  return (
+    <div className="card-detail">
+      <div><span className="mini-label">Selected card</span><h4>{card.label}</h4><p>{isVisible ? card.number : `•••• •••• •••• ${card.number.slice(-4)}`} · {card.expiry}</p></div>
+      <div className="card-detail-actions"><button type="button" className="tiny-btn" onClick={onToggleVisibility}>{isVisible ? 'Hide number' : 'Show number'}</button><button type="button" className="tiny-btn" onClick={onCopy}><FiCopy /> Copy</button><button type="button" className="tiny-btn" onClick={onHistory}><FiBriefcase /> History</button><button type="button" className="secondary-btn" onClick={onToggleLock}>{card.isFrozen ? <FiUnlock /> : <FiLock />}{card.isFrozen ? 'Unfreeze' : 'Freeze'}</button><button type="button" className="primary-btn" onClick={onSetPrimary}>{isPrimary ? <><FiCheck /> Primary</> : 'Make primary'}</button></div>
+    </div>
+  );
+}
+
 export default function UserDashboard({
   currentUser,
   theme,
@@ -57,6 +79,7 @@ export default function UserDashboard({
   onPayment,
   onProfileUpdate,
   onToggleCardLock,
+  onSetPrimaryCard,
 }) {
   const [transferForm, setTransferForm] = useState({
     sourceCardId: currentUser?.wallet?.cards?.[0]?.id || '',
@@ -66,6 +89,9 @@ export default function UserDashboard({
   });
   const [cardForm, setCardForm] = useState({ scheme: 'Uzcard', type: 'real', label: 'New card', currency: 'UZS' });
   const [paymentForm, setPaymentForm] = useState({ cardId: currentUser?.wallet?.cards?.[0]?.id || '', amount: '200000', title: 'Merchant payment', beneficiary: 'Marketplace' });
+  const [timeframe, setTimeframe] = useState('1 month');
+  const [selectedCardId, setSelectedCardId] = useState(null);
+  const [visibleCardIds, setVisibleCardIds] = useState({});
   const [profileForm, setProfileForm] = useState({
     firstName: currentUser?.firstName || '',
     lastName: currentUser?.lastName || '',
@@ -92,6 +118,23 @@ export default function UserDashboard({
       return acc;
     }, {});
   }, [currentUser]);
+
+  const periodTransactions = useMemo(() => {
+    const days = timeframeDays[timeframe];
+    const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+    return currentUser.transactions.filter((transaction) => new Date(transaction.timestamp).getTime() >= threshold);
+  }, [currentUser, timeframe]);
+  const incomeTotal = periodTransactions.filter((transaction) => transaction.direction === 'incoming').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+  const outcomeTotal = periodTransactions.filter((transaction) => transaction.direction === 'outgoing').reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+  const selectedCard = currentUser.wallet.cards.find((card) => card.id === selectedCardId);
+  const historyTransactions = selectedCardId
+    ? periodTransactions.filter((transaction) => transaction.from?.includes(selectedCard?.label) || transaction.to?.includes(selectedCard?.label))
+    : periodTransactions;
+
+  const toggleCardNumber = (cardId) => setVisibleCardIds((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
+  const copyCardNumber = async (card) => {
+    await navigator.clipboard?.writeText(card.number.replace(/\s/g, ''));
+  };
 
   const handleTransferSubmit = (event) => {
     event.preventDefault();
@@ -227,18 +270,27 @@ export default function UserDashboard({
           <div className="stat-card">
             <div className="stat-icon"><FiTrendingUp /></div>
             <div>
-              <span>Income</span>
-              <strong>{formatCurrency('USD', 2540)}</strong>
+              <span>Income · {timeframe}</span>
+              <strong>{formatCurrency('UZS', incomeTotal)}</strong>
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-icon"><FiShield /></div>
             <div>
-              <span>Security</span>
-              <strong>Protected</strong>
+              <span>Outcome · {timeframe}</span>
+              <strong>{formatCurrency('UZS', outcomeTotal)}</strong>
             </div>
           </div>
         </section>
+
+        <div className="period-toolbar">
+          <span>Activity period</span>
+          <div className="period-switcher">
+            {Object.keys(timeframeDays).map((period) => (
+              <button key={period} type="button" className={timeframe === period ? 'active' : ''} onClick={() => setTimeframe(period)}>{period}</button>
+            ))}
+          </div>
+        </div>
 
         <section className="main-grid">
           {activeView === 'overview' && (
@@ -273,12 +325,12 @@ export default function UserDashboard({
 
                 <div className="card-stack">
                   {currentUser.wallet.cards.map((card) => (
-                    <div key={card.id} className={`bank-card ${card.type}`}>
+                    <button key={card.id} type="button" className={`bank-card ${card.type} ${card.isFrozen ? 'frozen' : ''}`} onClick={() => setSelectedCardId(card.id)}>
                       <div className="card-top">
                         <span>{card.scheme}</span>
-                        <span>{card.type}</span>
+                        <span>{card.id === currentUser.wallet.primaryCardId ? 'Primary' : card.type}</span>
                       </div>
-                      <strong>{card.number}</strong>
+                      <strong>{visibleCardIds[card.id] ? card.number : `•••• •••• •••• ${card.number.slice(-4)}`}</strong>
                       <div className="card-meta">
                         <span>{card.holder}</span>
                         <span>{card.expiry}</span>
@@ -287,11 +339,22 @@ export default function UserDashboard({
                         <small>{card.currency}</small>
                         <strong>{formatCurrency(card.currency, card.balance)}</strong>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
+                {selectedCard && <CardDetail card={selectedCard} isPrimary={selectedCard.id === currentUser.wallet.primaryCardId} isVisible={Boolean(visibleCardIds[selectedCard.id])} onToggleVisibility={() => toggleCardNumber(selectedCard.id)} onCopy={() => copyCardNumber(selectedCard)} onToggleLock={() => onToggleCardLock(selectedCard.id)} onSetPrimary={() => onSetPrimaryCard(selectedCard.id)} onHistory={() => setActiveView('transactions')} />}
               </div>
             </>
+          )}
+
+          {activeView === 'wallet' && (
+            <div className="panel full-width-panel wallet-panel">
+              <div className="panel-header"><div><p className="eyebrow">Personal wallet</p><h3>My wallet</h3></div><span className="chip success">1 wallet / user</span></div>
+              <div className="wallet-hero"><div><span className="mini-label">Available balance</span><strong>{formatCurrency('UZS', totalBalance)}</strong></div><div><span className="mini-label">Wallet ID</span><strong>WLT-{String(currentUser.id).padStart(6, '0')}</strong></div></div>
+              <div className="currency-summary">{Object.entries(walletByCurrency).map(([currency, amount]) => <div key={currency} className="currency-pill"><span>{currency}</span><strong>{formatCurrency(currency, amount)}</strong></div>)}</div>
+              <div className="panel-header"><h3>Recent wallet activity</h3><button type="button" className="tiny-btn" onClick={() => setActiveView('transactions')}>View history</button></div>
+              <div className="transaction-list">{periodTransactions.slice(0, 5).map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} formatCurrency={formatCurrency} />)}</div>
+            </div>
           )}
 
           {activeView === 'cards' && (
@@ -310,14 +373,17 @@ export default function UserDashboard({
                         {card.isFrozen ? 'Frozen' : 'Active'}
                       </span>
                     </div>
-                    <strong>{card.number}</strong>
+                    <strong>{visibleCardIds[card.id] ? card.number : `•••• •••• •••• ${card.number.slice(-4)}`}</strong>
                     <p>{card.currency} · {card.type}</p>
                     <div className="mini-card-actions">
+                      <button type="button" className="tiny-btn" onClick={() => toggleCardNumber(card.id)}>{visibleCardIds[card.id] ? 'Hide' : 'Show'}</button>
+                      <button type="button" className="tiny-btn" onClick={() => copyCardNumber(card)}><FiCopy /> Copy</button>
                       <button type="button" className="secondary-btn" onClick={() => onToggleCardLock(card.id)}>
                         {card.isFrozen ? <FiUnlock /> : <FiLock />}
                         {card.isFrozen ? 'Unfreeze' : 'Freeze'}
                       </button>
                     </div>
+                    <div className="mini-card-actions"><button type="button" className="tiny-btn" onClick={() => setSelectedCardId(card.id)}>Details</button><button type="button" className={card.id === currentUser.wallet.primaryCardId ? 'tiny-btn selected' : 'tiny-btn'} onClick={() => onSetPrimaryCard(card.id)}>{card.id === currentUser.wallet.primaryCardId ? <><FiCheck /> Primary</> : 'Make primary'}</button></div>
                   </div>
                 ))}
               </div>
@@ -482,29 +548,8 @@ export default function UserDashboard({
                 <span className="chip neutral">All cards</span>
               </div>
 
-              <div className="transaction-list">
-                {currentUser.transactions.map((transaction) => (
-                  <div key={transaction.id} className="transaction-item">
-                    <div className="tx-icon">
-                      {transaction.direction === 'incoming' ? <FiArrowDownLeft /> : <FiArrowUpRight />}
-                    </div>
-                    <div className="tx-main">
-                      <strong>{transaction.title}</strong>
-                      <small>{transaction.description}</small>
-                    </div>
-                    <div className="tx-detail">
-                      <strong className={transaction.direction === 'incoming' ? 'incoming' : 'outgoing'}>
-                        {transaction.direction === 'incoming' ? '+' : '-'}
-                        {formatCurrency(transaction.currency, transaction.amount)}
-                      </strong>
-                      <small>{new Date(transaction.timestamp).toLocaleString()}</small>
-                    </div>
-                    <button type="button" className="tiny-btn" onClick={() => generateCheck(transaction)}>
-                      <FiDownload /> PDF
-                    </button>
-                  </div>
-                ))}
-              </div>
+              {selectedCard && <p className="history-filter">Showing history for {selectedCard.label}</p>}
+              <div className="transaction-list">{historyTransactions.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} formatCurrency={formatCurrency} onDownload={() => generateCheck(transaction)} />)}</div>
             </div>
           )}
 

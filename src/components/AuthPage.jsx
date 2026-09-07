@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiArrowRight, FiCheckCircle, FiLock, FiMail, FiShield, FiUser } from 'react-icons/fi';
+import { FiArrowRight, FiEye, FiEyeOff, FiLock, FiMail, FiPhone, FiShield, FiUser } from 'react-icons/fi';
 
 const initialRegisterState = {
   contact: '',
@@ -14,6 +14,10 @@ export default function AuthPage({ authMode, onToggleMode, onLogin, onRegister, 
   const [registerForm, setRegisterForm] = useState(initialRegisterState);
   const [registerStep, setRegisterStep] = useState('contact');
   const [verificationCode, setVerificationCode] = useState('');
+  const [loginPasswordVisible, setLoginPasswordVisible] = useState(false);
+  const [registerPasswordVisible, setRegisterPasswordVisible] = useState(false);
+  const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
+  const [contactMethod, setContactMethod] = useState('email');
 
   const handleSendCode = async () => {
     const generatedCode = await onSendCode(registerForm.contact);
@@ -31,7 +35,7 @@ export default function AuthPage({ authMode, onToggleMode, onLogin, onRegister, 
     }
 
     if (registerStep === 'verify') {
-      if (String(registerForm.code).trim() !== verificationCode) {
+      if (String(registerForm.code).trim() !== verificationCode || registerForm.code.length !== 4) {
         return;
       }
       setRegisterStep('credentials');
@@ -117,10 +121,13 @@ export default function AuthPage({ authMode, onToggleMode, onLogin, onRegister, 
               <div className="input-wrap">
                 <FiLock />
                 <input
-                  type="password"
+                  type={loginPasswordVisible ? 'text' : 'password'}
                   value={loginForm.password}
                   onChange={(e) => updateLogin('password', e.target.value)}
                 />
+                <button type="button" className="field-action" aria-label="Toggle password visibility" onClick={() => setLoginPasswordVisible((visible) => !visible)}>
+                  {loginPasswordVisible ? <FiEyeOff /> : <FiEye />}
+                </button>
               </div>
             </label>
 
@@ -134,14 +141,19 @@ export default function AuthPage({ authMode, onToggleMode, onLogin, onRegister, 
 
             {registerStep === 'contact' && (
               <>
+                <div className="contact-method-switcher">
+                  <button type="button" className={contactMethod === 'email' ? 'active' : ''} onClick={() => setContactMethod('email')}><FiMail /> Email</button>
+                  <button type="button" className={contactMethod === 'phone' ? 'active' : ''} onClick={() => setContactMethod('phone')}><FiPhone /> Telefon</button>
+                </div>
                 <label>
-                  <span>Email or phone</span>
+                  <span>{contactMethod === 'email' ? 'Email manzili' : 'Telefon raqami'}</span>
                   <div className="input-wrap">
-                    <FiMail />
+                    {contactMethod === 'email' ? <FiMail /> : <FiPhone />}
                     <input
                       value={registerForm.contact}
                       onChange={(e) => updateRegister('contact', e.target.value)}
-                      placeholder="example@mail.com / +9989..."
+                      type={contactMethod === 'email' ? 'email' : 'tel'}
+                      placeholder={contactMethod === 'email' ? 'example@mail.com' : '+998 90 123 45 67'}
                     />
                   </div>
                 </label>
@@ -154,14 +166,23 @@ export default function AuthPage({ authMode, onToggleMode, onLogin, onRegister, 
             {registerStep === 'verify' && (
               <>
                 <label>
-                  <span>6-digit code</span>
-                  <div className="input-wrap">
-                    <FiCheckCircle />
-                    <input
-                      value={registerForm.code}
-                      maxLength={6}
-                      onChange={(e) => updateRegister('code', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    />
+                  <span>4 xonali tasdiqlash kodi</span>
+                  <div className="otp-inputs">
+                    {[0, 1, 2, 3].map((index) => (
+                      <input
+                        key={index}
+                        aria-label={`Code digit ${index + 1}`}
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={registerForm.code[index] || ''}
+                        onChange={(e) => {
+                          const digit = e.target.value.replace(/\D/g, '').slice(-1);
+                          const nextCode = registerForm.code.padEnd(4, ' ').split('');
+                          nextCode[index] = digit;
+                          updateRegister('code', nextCode.join('').replace(/ /g, '').slice(0, 4));
+                        }}
+                      />
+                    ))}
                   </div>
                 </label>
                 <button type="submit" className="primary-btn">
@@ -188,10 +209,13 @@ export default function AuthPage({ authMode, onToggleMode, onLogin, onRegister, 
                   <div className="input-wrap">
                     <FiLock />
                     <input
-                      type="password"
+                      type={registerPasswordVisible ? 'text' : 'password'}
                       value={registerForm.password}
                       onChange={(e) => updateRegister('password', e.target.value)}
                     />
+                    <button type="button" className="field-action" aria-label="Toggle new password visibility" onClick={() => setRegisterPasswordVisible((visible) => !visible)}>
+                      {registerPasswordVisible ? <FiEyeOff /> : <FiEye />}
+                    </button>
                   </div>
                 </label>
 
@@ -200,11 +224,15 @@ export default function AuthPage({ authMode, onToggleMode, onLogin, onRegister, 
                   <div className="input-wrap">
                     <FiLock />
                     <input
-                      type="password"
+                      type={confirmPasswordVisible ? 'text' : 'password'}
                       value={registerForm.confirmPassword}
                       onChange={(e) => updateRegister('confirmPassword', e.target.value)}
                     />
+                    <button type="button" className="field-action" aria-label="Toggle confirm password visibility" onClick={() => setConfirmPasswordVisible((visible) => !visible)}>
+                      {confirmPasswordVisible ? <FiEyeOff /> : <FiEye />}
+                    </button>
                   </div>
+                  {registerForm.confirmPassword && <small className={registerForm.password === registerForm.confirmPassword ? 'match-hint valid' : 'match-hint'}>{registerForm.password === registerForm.confirmPassword ? 'Parollar mos' : 'Parollar mos emas'}</small>}
                 </label>
 
                 <button type="submit" className="primary-btn">
